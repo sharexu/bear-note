@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fafafa">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="熊掌笔记">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>熊掌笔记</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" id="hljs-theme">
+<style>
+:root {
+  --font-size: 15px;
+  --sidebar-w: 200px;
+  --list-w: 260px;
+}
+[data-theme="light"] {
+  --bg: #ffffff; --bg-rail: #fafafa; --bg-hover: #f2f2f2;
+  --bg-active: #ececec; --bg-selected: #f7f7f7;
+  --fg: #1a1a1a; --fg-2: #767676; --fg-3: #ababab;
+  --line: #f0f0f0; --accent: #444444; --code-bg: #f8f8f8;
+}
+[data-theme="dark"] {
+  --bg: #1a1a1a; --bg-rail: #1f1f1f; --bg-hover: #2a2a2a;
+  --bg-active: #333333; --bg-selected: #242424;
+  --fg: #e0e0e0; --fg-2: #888888; --fg-3: #555555;
+  --line: #2a2a2a; --accent: #cccccc; --code-bg: #222222;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { overscroll-behavior: none; }
+body {
+  font-family: "Helvetica Neue", -apple-system, "Segoe UI", sans-serif;
+  font-size: var(--font-size);
+  background: var(--bg); color: var(--fg);
+  height: 100vh; height: 100dvh; overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background .2s, color .2s;
+}
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) var(--list-w) 1fr;
+  height: 100vh; height: 100dvh;
+}
+
+/* === Sidebar === */
+.sidebar {
+  background: var(--bg-rail);
+  display: flex; flex-direction: column;
+  overflow-y: auto; padding: 20px 0;
+}
+.sidebar-header {
+  padding: 0 20px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sidebar-header h1 {
+  font-size: 13px; font-weight: 500;
+  letter-spacing: 0.5px; color: var(--fg-2);
+  text-transform: uppercase;
+}
+.sidebar-btn {
+  border: none; background: none; cursor: pointer;
+  color: var(--fg-3); font-size: 13px; padding: 4px;
+}
+.sidebar-btn:hover { color: var(--fg); }
+.sidebar-group { padding: 0 8px; margin-bottom: 18px; }
+.sidebar-group-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 1px; color: var(--fg-3);
+  padding: 0 12px 6px; text-transform: uppercase;
+}
+.sidebar-item {
+  display: flex; align-items: center;
+  padding: 6px 12px; font-size: 13px; color: var(--fg-2);
+  cursor: pointer; border-radius: 4px;
+  transition: all .12s; position: relative;
+  min-height: 32px;
+}
+.sidebar-item:hover { color: var(--fg); background: var(--bg-hover); }
+.sidebar-item.active { color: var(--fg); background: var(--bg-active); }
+.sidebar-item .num { margin-left: auto; font-size: 11px; color: var(--fg-3); }
+.sidebar-item .del {
+  display: none; position: absolute; right: 10px;
+  font-size: 14px; color: var(--fg-3); cursor: pointer; padding: 2px 4px;
+}
+.sidebar-item:hover .del { display: block; }
+.sync-status {
+  padding: 12px 20px 0; font-size: 11px; color: var(--fg-3);
+  display: flex; align-items: center; gap: 6px;
+}
+.sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-3); }
+.sync-dot.on { background: #4a9e5c; }
+.sync-dot.err { background: #c0504d; }
+.sync-dot.busy { background: #d4a020; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+/* === Note List === */
+.note-list-panel {
+  background: var(--bg);
+  border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.list-header { padding: 14px 20px 8px; display: flex; gap: 8px; align-items: center; }
+.hamburger {
+  display: none; border: none; background: none; cursor: pointer;
+  color: var(--fg-2); font-size: 18px; padding: 4px 6px; border-radius: 3px;
+}
+.hamburger:hover { background: var(--bg-hover); }
+.search-input {
+  flex: 1; border: none; outline: none;
+  background: var(--bg-rail);
+  padding: 8px 12px; border-radius: 4px;
+  font-size: 13px; color: var(--fg);
+}
+.search-input::placeholder { color: var(--fg-3); }
+.list-meta {
+  padding: 4px 20px 10px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--fg-3);
+}
+.btn-new {
+  background: none; border: 1px solid var(--line);
+  padding: 5px 12px; border-radius: 3px;
+  font-size: 12px; color: var(--fg-2); cursor: pointer;
+}
+.btn-new:hover { border-color: var(--fg-3); color: var(--fg); }
+.note-list { flex: 1; overflow-y: auto; padding: 0 12px; }
+.note-card {
+  padding: 14px 12px; cursor: pointer; border-radius: 4px;
+  margin-bottom: 1px; transition: background .12s;
+}
+.note-card:hover { background: var(--bg-hover); }
+.note-card.active { background: var(--bg-selected); }
+.note-card-title {
+  font-size: 13px; font-weight: 500; margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.note-card-title .pinned-mark { color: var(--fg); font-size: 10px; margin-right: 4px; }
+.note-card-preview {
+  font-size: 12px; color: var(--fg-3); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.note-card-time { font-size: 11px; color: var(--fg-3); margin-top: 4px; opacity: 0.7; }
+
+/* === Editor === */
+.editor-panel { display: flex; flex-direction: column; overflow: hidden; }
+.editor-toolbar {
+  padding: 8px 20px; display: flex; align-items: center; gap: 2px;
+  border-bottom: 1px solid var(--line); flex-wrap: nowrap; overflow-x: auto;
+  scrollbar-width: none;
+}
+.editor-toolbar::-webkit-scrollbar { display: none; }
+.back-btn {
+  display: none; border: none; background: none; cursor: pointer;
+  color: var(--fg-2); font-size: 18px; padding: 4px 6px; margin-right: 4px;
+}
+.tb {
+  border: none; background: none; cursor: pointer;
+  color: var(--fg-3); font-size: 13px;
+  padding: 6px 8px; border-radius: 3px;
+  font-weight: 500; font-family: inherit;
+  font-variant-emoji: text;
+  min-width: 28px; min-height: 32px; text-align: center;
+  flex-shrink: 0;
+}
+.tb:hover { color: var(--fg); background: var(--bg-hover); }
+.tb-sep { width: 1px; height: 14px; background: var(--line); margin: 0 4px; flex-shrink: 0; }
+.tb-right { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.wc { font-size: 11px; color: var(--fg-3); margin-right: 4px; }
+.act {
+  border: none; background: none; cursor: pointer;
+  font-size: 14px; color: var(--fg-3);
+  padding: 6px; border-radius: 3px;
+  font-variant-emoji: text;
+  min-width: 28px; min-height: 32px;
+}
+.act:hover { color: var(--fg); }
+.act.on { color: var(--fg); }
+.act.danger:hover { color: #c00; }
+.editor-split { flex: 1; display: flex; overflow: hidden; }
+.edit-col, .prev-col { flex: 1; overflow-y: auto; padding: 28px 32px; }
+.edit-col textarea {
+  width: 100%; height: 100%;
+  border: none; outline: none; resize: none;
+  background: transparent; color: var(--fg);
+  font-family: "SF Mono", "Fira Code", "Menlo", monospace;
+  font-size: var(--font-size); line-height: 1.8;
+}
+.prev-col { border-left: 1px solid var(--line); background: var(--bg-rail); }
+.prev-col h1 { font-size: 1.6em; font-weight: 600; margin: 0.5em 0 0.3em; }
+.prev-col h2 { font-size: 1.3em; font-weight: 600; margin: 0.5em 0 0.3em; }
+.prev-col h3 { font-size: 1.1em; font-weight: 600; margin: 0.4em 0 0.2em; }
+.prev-col p { margin: 0.5em 0; line-height: 1.8; }
+.prev-col ul, .prev-col ol { padding-left: 1.6em; margin: 0.5em 0; }
+.prev-col blockquote {
+  border-left: 2px solid var(--line);
+  padding-left: 14px; margin: 0.8em 0; color: var(--fg-2);
+}
+.prev-col code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+.prev-col pre { background: var(--code-bg); border-radius: 4px; padding: 14px; overflow-x: auto; margin: 1em 0; }
+.prev-col pre code { background: none; padding: 0; }
+.prev-col table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.95em; }
+.prev-col th, .prev-col td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.prev-col th { background: var(--bg-hover); font-weight: 500; }
+.prev-col img { max-width: 100%; border-radius: 4px; }
+.prev-col .task-list-item { list-style: none; margin-left: -1.6em; }
+.prev-col a { color: var(--fg); text-decoration: underline; }
+
+/* === Modal === */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3); z-index: 100;
+  align-items: center; justify-content: center;
+  padding: 16px;
+}
+.overlay.show { display: flex; }
+.panel {
+  background: var(--bg); border-radius: 8px;
+  padding: 24px; width: 100%; max-width: 360px;
+  max-height: 90vh; overflow-y: auto;
+}
+.panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.panel h3 { font-size: 12px; font-weight: 600; color: var(--fg-2); margin: 16px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); text-transform: uppercase; letter-spacing: 0.5px; }
+.panel-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; gap: 8px;
+}
+.panel-row label { font-size: 12px; color: var(--fg-2); flex-shrink: 0; }
+.panel-row input, .panel-row select, .panel-row button {
+  border: 1px solid var(--line); background: var(--bg-rail);
+  padding: 6px 10px; border-radius: 4px;
+  font-size: 12px; color: var(--fg); cursor: pointer;
+  font-family: inherit;
+}
+.panel-row input[type="password"], .panel-row input[type="text"] {
+  flex: 1; min-width: 0; font-family: monospace;
+}
+.panel-row input[type="checkbox"] { width: 16px; height: 16px; padding: 0; }
+.panel-row .full { flex: 1; }
+.panel-tip { font-size: 11px; color: var(--fg-3); padding: 4px 0; line-height: 1.4; }
+.modal-input {
+  width: 100%; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 4px;
+  font-size: 13px; background: var(--bg-rail); color: var(--fg);
+  outline: none; margin-bottom: 12px;
+}
+.modal-input:focus { border-color: var(--fg-3); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.m-btn {
+  padding: 8px 16px; border-radius: 4px; border: none;
+  cursor: pointer; font-size: 12px;
+}
+.m-btn.go { background: var(--fg); color: var(--bg); }
+.m-btn.no { background: var(--bg-rail); color: var(--fg-2); }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* === Empty === */
+.empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 100%; color: var(--fg-3); font-size: 13px;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+
+/* === Tablet === */
+@media (max-width: 1024px) {
+  :root { --sidebar-w: 180px; --list-w: 240px; }
+  .prev-col { display: none; }
+}
+
+/* === Mobile === */
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+  .hamburger { display: block; }
+  .back-btn { display: block; }
+  :root { --font-size: 15px; }
+  .sidebar, .note-list-panel, .editor-panel {
+    grid-column: 1; grid-row: 1;
+    border: none;
+  }
+  body[data-view="list"] .sidebar,
+  body[data-view="list"] .editor-panel,
+  body[data-view="editor"] .sidebar,
+  body[data-view="editor"] .note-list-panel,
+  body[data-view="sidebar"] .note-list-panel,
+  body[data-view="sidebar"] .editor-panel { display: none; }
+  body[data-view="list"] .sidebar { display: none; }
+  .edit-col, .prev-col { padding: 16px; }
+  .edit-col { padding-bottom: 60px; }
+  .note-card { padding: 14px; }
+  .editor-toolbar { padding: 6px 12px; }
+  .list-header { padding: 10px 14px 6px; }
+  .list-meta { padding: 2px 14px 8px; }
+  .sidebar-header { padding: 0 16px 14px; }
+  .mobile-close { display: block !important; }
+}
+.mobile-close { display: none; }
+</style>
+</head>
+<body data-theme="light" data-view="list">
+<div class="app">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>笔记</h1>
+      <div style="display:flex;gap:8px">
+        <button class="sidebar-btn" onclick="openSettings()">设置</button>
+        <button class="sidebar-btn mobile-close" onclick="setView('list')">×</button>
+      </div>
+    </div>
+    <div class="sidebar-group">
+      <div class="sidebar-item active" data-filter="all" onclick="setFilter('all')">
+        全部 <span class="num" id="count-all">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="pinned" onclick="setFilter('pinned')">
+        置顶 <span class="num" id="count-pinned">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="archived" onclick="setFilter('archived')">
+        归档 <span class="num" id="count-archived">0</span>
+      </div>
+    </div>
+    <div class="sidebar-group">
+      <div class="sidebar-group-label">文件夹</div>
+      <div id="folder-list"></div>
+      <div class="sidebar-item" onclick="showNewFolderModal()" style="color:var(--fg-3)">+ 新建</div>
+    </div>
+    <div class="sidebar-group">
+      <div class="sidebar-group-label">标签</div>
+      <div id="tag-list"></div>
+    </div>
+    <div class="sync-status" id="sync-status">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span id="sync-text">未启用同步</span>
+    </div>
+  </div>
+
+  <div class="note-list-panel">
+    <div class="list-header">
+      <button class="hamburger" onclick="setView('sidebar')">≡</button>
+      <input class="search-input" id="search-input" placeholder="搜索" oninput="renderNoteList()">
+    </div>
+    <div class="list-meta">
+      <span id="list-info">0 篇</span>
+      <button class="btn-new" onclick="createNote()">新建</button>
+    </div>
+    <div class="note-list" id="note-list"></div>
+  </div>
+
+  <div class="editor-panel">
+    <div class="empty" id="editor-empty">选择或新建笔记</div>
+    <div id="editor-main" style="display:none;flex-direction:column;height:100%">
+      <div class="editor-toolbar">
+        <button class="back-btn" onclick="setView('list')">‹</button>
+        <button class="tb" onclick="insertMd('**','**')" title="加粗">B</button>
+        <button class="tb" onclick="insertMd('*','*')" title="斜体"><em>I</em></button>
+        <button class="tb" onclick="insertMd('~~','~~')" title="删除线"><s>S</s></button>
+        <span class="tb-sep"></span>
+        <button class="tb" onclick="insertMd('# ','')" title="标题">H1</button>
+        <button class="tb" onclick="insertMd('## ','')" title="副标题">H2</button>
+        <button class="tb" onclick="insertMd('- ','')" title="列表">≡</button>
+        <button class="tb" onclick="insertMd('- [ ] ','')" title="待办">☐&#xFE0E;</button>
+        <button class="tb" onclick="insertMd('> ','')" title="引用">❝</button>
+        <span class="tb-sep"></span>
+        <button class="tb" onclick="insertMd('```\n','\n```')" title="代码">&lt;&gt;</button>
+        <button class="tb" onclick="insertTable()" title="表格">⊞</button>
+        <button class="tb" onclick="insertImage()" title="图片">⊡</button>
+        <span class="tb-right">
+          <span class="wc" id="word-count"></span>
+          <button class="act" id="btn-pin" onclick="togglePin()" title="置顶">⌃</button>
+          <button class="act" id="btn-arch" onclick="toggleArchive()" title="归档">⌄</button>
+          <button class="act" onclick="exportCurrentNote()" title="导出">↓</button>
+          <button class="act" onclick="syncNow()" title="同步" id="btn-sync">↻</button>
+          <button class="act danger" onclick="deleteNote()" title="删除">×</button>
+        </span>
+      </div>
+      <div class="editor-split">
+        <div class="edit-col"><textarea id="editor" placeholder="开始写..." oninput="onEditorInput()"></textarea></div>
+        <div class="prev-col" id="preview"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="settings-overlay" onclick="closeSettings(event)">
+  <div class="panel">
+    <h2>设置</h2>
+    <h3>外观</h3>
+    <div class="panel-row">
+      <label>主题</label>
+      <select id="theme-select" onchange="setTheme(this.value)">
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+      </select>
+    </div>
+    <div class="panel-row">
+      <label>字号</label>
+      <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end">
+        <input type="range" min="12" max="22" value="15" id="font-size-range" oninput="setFontSize(this.value)" style="width:90px">
+        <span id="font-size-val" style="font-size:12px;color:var(--fg-3)">15</span>
+      </div>
+    </div>
+
+    <h3>GitHub Gist 同步</h3>
+    <div class="panel-row">
+      <label>启用</label>
+      <input type="checkbox" id="sync-enable" onchange="onSyncToggle()">
+    </div>
+    <div class="panel-row">
+      <label>令牌</label>
+      <input type="password" id="sync-token" placeholder="本次打开页面时输入" autocomplete="off" onchange="saveSyncConfig()">
+    </div>
+    <div class="panel-row">
+      <label>Gist</label>
+      <input type="text" id="sync-gist-id" placeholder="gist ID 或 URL" onchange="saveSyncConfig()">
+    </div>
+    <div class="panel-tip">Fine-grained Token 只需 Gists: Read and write。出于安全考虑，令牌仅保存在当前页面内存中，刷新页面后需要重新输入；不要把令牌写进代码或 localStorage。</div>
+    <div class="panel-row">
+      <label>自动</label>
+      <input type="checkbox" id="sync-auto" onchange="saveSyncConfig()">
+    </div>
+    <div class="panel-row" style="gap:6px;flex-wrap:wrap">
+      <button onclick="createGist()">新建 Gist</button>
+      <button onclick="manualPull()">拉取</button>
+      <button onclick="manualPush()">推送</button>
+      <button onclick="syncNow()">双向同步</button>
+    </div>
+    <div class="panel-tip" id="sync-detail">状态：未启用</div>
+
+    <h3>备份</h3>
+    <div class="panel-row" style="gap:6px;flex-wrap:wrap">
+      <button onclick="exportAll()">导出 JSON</button>
+      <button onclick="document.getElementById('import-file').click()">导入 JSON</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importAll(event)">
+    </div>
+
+    <h3>危险</h3>
+    <div class="panel-row">
+      <label style="color:#c00">清空所有数据</label>
+      <button onclick="clearAll()" style="color:#c00">删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="folder-modal" onclick="closeFolderModal(event)">
+  <div class="panel" style="max-width:300px">
+    <h2>新建文件夹</h2>
+    <input class="modal-input" id="folder-name-input" placeholder="名称" onkeydown="if(event.key==='Enter')createFolder()">
+    <div class="modal-actions">
+      <button class="m-btn no" onclick="hideNewFolderModal()">取消</button>
+      <button class="m-btn go" onclick="createFolder()">创建</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="conflict-modal">
+  <div class="panel" style="max-width:320px">
+    <h2>检测到云端更新</h2>
+    <p class="panel-tip">同一篇笔记在两台设备上都被修改时，会保留云端原笔记，并把本地版本另存为“本地冲突副本”，避免内容丢失。</p>
+    <div class="modal-actions" style="flex-wrap:wrap;justify-content:flex-start;margin-top:12px">
+      <button class="m-btn no" onclick="resolveConflict('cancel')">取消</button>
+      <button class="m-btn go" onclick="resolveConflict('pull')">用云端</button>
+      <button class="m-btn go" onclick="resolveConflict('push')">用本地</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages.python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages.css.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages.xml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages.bash.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages.sql.min.js"></script>
+<script>
+// === Storage ===
+const STORAGE_KEY = 'bear-note:data:v1';
+const SYNC_KEY = 'bear-note:sync:v1';
+const BASE_KEY = 'bear-note:sync-base:v1';
+const LEGACY_KEY = '***';
+const FILE_NAME = 'notes.json';
+function defaultData() { return { notes: [], folders: [], settings: { theme:'light', fontSize:15 }, rev: 0, updated: 0 }; }
+function loadData() {
+  let raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    // Migrate data from older builds that used a placeholder key.
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy) {
+      try { const parsed = JSON.parse(legacy); if (parsed && Array.isArray(parsed.notes)) raw = legacy; } catch (_) {}
+    }
+  }
+  if (raw) {
+    try { const d = JSON.parse(raw); if (d && Array.isArray(d.notes)) return { ...defaultData(), ...d }; } catch (_) {}
+  }
+  return defaultData();
+}
+function saveData(d) { d.updated = Date.now(); localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+let DB = loadData();
+let SYNC_TOKEN = ''; // Kept in memory only; never written to localStorage.
+let SYNC = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SYNC_KEY) || '{}');
+    if (saved.token) { SYNC_TOKEN = saved.token; delete saved.token; }
+    if (!saved.gistId) {
+      const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) || '{}');
+      if (legacy && !Array.isArray(legacy.notes)) {
+        if (legacy.token) SYNC_TOKEN = legacy.token;
+        return { enabled:!!legacy.enabled, gistId:legacy.gistId||'', auto:legacy.auto!==false, lastSyncAt:legacy.lastSyncAt||0 };
+      }
+    }
+    return { enabled:!!saved.enabled, gistId:saved.gistId||'', auto:saved.auto!==false, lastSyncAt:saved.lastSyncAt||0 };
+  } catch (_) { return { enabled:false, gistId:'', auto:true, lastSyncAt:0 }; }
+})();
+function saveSync() {
+  // Remove any token left by older versions; browser-only apps cannot protect a persistent PAT from XSS.
+  const safe = { enabled:SYNC.enabled, gistId:SYNC.gistId, auto:SYNC.auto, lastSyncAt:SYNC.lastSyncAt||0 };
+  localStorage.setItem(SYNC_KEY, JSON.stringify(safe));
+  try { const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null'); if (legacy && legacy.token) { delete legacy.token; localStorage.setItem(LEGACY_KEY, JSON.stringify(legacy)); } } catch (_) {}
+}
+let SYNC_BASE = (() => { try { return JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); } catch (_) { return null; } })();
+function saveSyncBase(data) { SYNC_BASE = JSON.parse(JSON.stringify(data)); localStorage.setItem(BASE_KEY, JSON.stringify(SYNC_BASE)); }
+
+let currentFilter = { type: 'all', value: null };
+let activeNoteId = null;
+let syncTimer = null;
+let pendingConflictData = null;
+
+// === View routing (mobile) ===
+function setView(v) { document.body.dataset.view = v; }
+function isMobile() { return window.innerWidth <= 768; }
+
+// === Marked ===
+marked.use({ breaks:true, gfm:true, renderer:{
+  code(code, lang){
+    let h = code;
+    if (lang && hljs.getLanguage(lang)) h = hljs.highlight(code, {language:lang}).value;
+    else h = hljs.highlightAuto(code).value;
+    return `<pre><code class="hljs">${h}</code></pre>`;
+  },
+  checkbox(c){ return `<input type="checkbox" ${c?'checked':''} disabled> `; }
+}});
+
+// === Filters ===
+function setFilter(type, value) {
+  currentFilter = { type, value };
+  document.querySelectorAll('.sidebar-item').forEach(el => {
+    el.classList.remove('active');
+    if (type==='all' && el.dataset.filter==='all') el.classList.add('active');
+    else if (type==='pinned' && el.dataset.filter==='pinned') el.classList.add('active');
+    else if (type==='archived' && el.dataset.filter==='archived') el.classList.add('active');
+    else if (type==='folder' && el.dataset.filter==='folder' && el.dataset.value===value) el.classList.add('active');
+    else if (type==='tag' && el.dataset.filter==='tag' && el.dataset.value===value) el.classList.add('active');
+  });
+  renderNoteList();
+  if (isMobile()) setView('list');
+}
+function getFilteredNotes() {
+  let notes = [...DB.notes];
+  const { type, value } = currentFilter;
+  if (type==='all') notes=notes.filter(n=>!n.archived);
+  else if (type==='pinned') notes=notes.filter(n=>n.pinned&&!n.archived);
+  else if (type==='archived') notes=notes.filter(n=>n.archived);
+  else if (type==='folder') notes=notes.filter(n=>n.folder===value&&!n.archived);
+  else if (type==='tag') notes=notes.filter(n=>n.tags.includes(value)&&!n.archived);
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  if (q) notes = notes.filter(n => (n.title+n.content).toLowerCase().includes(q));
+  notes.sort((a,b)=>{
+    if (type!=='archived' && a.pinned!==b.pinned) return b.pinned-a.pinned;
+    return b.updated-a.updated;
+  });
+  return notes;
+}
+
+// === Render ===
+function renderSidebar() {
+  const active = DB.notes.filter(n=>!n.archived);
+  document.getElementById('count-all').textContent = active.length;
+  document.getElementById('count-pinned').textContent = active.filter(n=>n.pinned).length;
+  document.getElementById('count-archived').textContent = DB.notes.filter(n=>n.archived).length;
+  document.getElementById('folder-list').innerHTML = DB.folders.map(f=>{
+    const cnt = DB.notes.filter(n=>n.folder===f.name&&!n.archived).length;
+    return `<div class="sidebar-item" data-filter="folder" data-value="${f.name}" onclick="setFilter('folder','${f.name}')">
+      ${f.name}<span class="num">${cnt}</span>
+      <span class="del" onclick="event.stopPropagation();deleteFolder('${f.name}')">×</span>
+    </div>`;
+  }).join('');
+  const tags = {};
+  DB.notes.forEach(n=>{ if(!n.archived) n.tags.forEach(t=>tags[t]=(tags[t]||0)+1); });
+  document.getElementById('tag-list').innerHTML = Object.entries(tags).sort((a,b)=>b[1]-a[1]).map(([t,c])=>
+    `<div class="sidebar-item" data-filter="tag" data-value="${t}" onclick="setFilter('tag','${t}')">#${t}<span class="num">${c}</span></div>`
+  ).join('') || '<div style="padding:4px 12px;font-size:12px;color:var(--fg-3)">暂无</div>';
+}
+function renderNoteList() {
+  const notes = getFilteredNotes();
+  document.getElementById('list-info').textContent = `${notes.length} 篇`;
+  const nl = document.getElementById('note-list');
+  if (!notes.length) { nl.innerHTML='<div style="padding:24px;text-align:center;color:var(--fg-3);font-size:12px">无</div>'; return; }
+  nl.innerHTML = notes.map(n=>{
+    const preview = n.content.replace(/[#`\-\[\]!*\s]+/g,' ').slice(0,80);
+    const time = new Date(n.updated).toLocaleDateString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="note-card ${n.id===activeNoteId?'active':''}" onclick="openNote('${n.id}')">
+      <div class="note-card-title">${n.pinned?'<span class="pinned-mark">●</span>':''}${escHtml(n.title||'无标题')}</div>
+      <div class="note-card-preview">${escHtml(preview)}</div>
+      <div class="note-card-time">${time}</div>
+    </div>`;
+  }).join('');
+}
+
+// === Notes ===
+function createNote() {
+  const note = { id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    title:'', content:'', tags:[],
+    folder: currentFilter.type==='folder'?currentFilter.value:null,
+    pinned:false, archived:false, created:Date.now(), updated:Date.now() };
+  DB.notes.unshift(note); saveData(DB);
+  openNote(note.id); renderSidebar(); renderNoteList();
+  if (isMobile()) setView('editor');
+  document.getElementById('editor').focus();
+  scheduleSync();
+}
+function openNote(id) {
+  activeNoteId = id;
+  const note = DB.notes.find(n=>n.id===id); if(!note) return;
+  document.getElementById('editor-empty').style.display='none';
+  document.getElementById('editor-main').style.display='flex';
+  document.getElementById('editor').value = note.content;
+  renderPreview(); updateWordCount(); updateActions(note); renderNoteList();
+  if (isMobile()) setView('editor');
+}
+function onEditorInput() {
+  const note = DB.notes.find(n=>n.id===activeNoteId); if(!note) return;
+  const c = document.getElementById('editor').value;
+  note.content = c;
+  note.title = c.split('\n')[0].replace(/^#+\s*/,'').slice(0,60) || '无标题';
+  note.tags = extractTags(c);
+  note.updated = Date.now(); saveData(DB);
+  renderPreview(); updateWordCount(); renderSidebar(); renderNoteList();
+  scheduleSync();
+}
+function deleteNote() {
+  if(!activeNoteId||!confirm('删除这篇笔记？')) return;
+  DB.notes = DB.notes.filter(n=>n.id!==activeNoteId); saveData(DB);
+  activeNoteId=null;
+  document.getElementById('editor-main').style.display='none';
+  document.getElementById('editor-empty').style.display='flex';
+  renderSidebar(); renderNoteList(); scheduleSync();
+  if (isMobile()) setView('list');
+}
+function togglePin() {
+  const n=DB.notes.find(n=>n.id===activeNoteId); if(!n) return;
+  n.pinned=!n.pinned; n.updated=Date.now(); saveData(DB); updateActions(n); renderSidebar(); renderNoteList(); scheduleSync();
+}
+function toggleArchive() {
+  const n=DB.notes.find(n=>n.id===activeNoteId); if(!n) return;
+  n.archived=!n.archived; n.updated=Date.now(); saveData(DB); updateActions(n); renderSidebar(); renderNoteList(); scheduleSync();
+}
+function updateActions(note) {
+  document.getElementById('btn-pin').classList.toggle('on', note.pinned);
+  document.getElementById('btn-arch').classList.toggle('on', note.archived);
+}
+function extractTags(t){ const m=t.match(/#[\w\u4e00-\u9fff-]+/g); return m?[...new Set(m.map(x=>x.slice(1)))]:[]; }
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function renderPreview(){ document.getElementById('preview').innerHTML = marked.parse(document.getElementById('editor').value); }
+function updateWordCount(){
+  const t=document.getElementById('editor').value;
+  document.getElementById('word-count').textContent = t.replace(/\s/g,'').length+' 字';
+}
+
+// === Toolbar ===
+function insertMd(b,a){
+  const ta=document.getElementById('editor'),s=ta.selectionStart,e=ta.selectionEnd;
+  ta.setRangeText(b+(ta.value.slice(s,e)||'文字')+a,s,e,'select');
+  ta.dispatchEvent(new Event('input')); ta.focus();
+}
+function insertTable(){
+  const ta=document.getElementById('editor'),p=ta.selectionStart;
+  ta.setRangeText('\n| 列 | 列 | 列 |\n| --- | --- | --- |\n|     |     |     |\n',p,p,'end');
+  ta.dispatchEvent(new Event('input')); ta.focus();
+}
+function insertImage(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=ev=>{
+      const ta=document.getElementById('editor'),p=ta.selectionStart;
+      ta.setRangeText(`![${f.name}](${ev.target.result})\n`,p,p,'end');
+      ta.dispatchEvent(new Event('input'));
+    }; r.readAsDataURL(f);
+  }; inp.click();
+}
+
+// === Folders ===
+function showNewFolderModal(){ document.getElementById('folder-modal').classList.add('show'); document.getElementById('folder-name-input').focus(); }
+function hideNewFolderModal(){ document.getElementById('folder-modal').classList.remove('show'); }
+function closeFolderModal(e){ if(e.target===e.currentTarget) hideNewFolderModal(); }
+function createFolder(){
+  const name=document.getElementById('folder-name-input').value.trim(); if(!name) return;
+  if(DB.folders.find(f=>f.name===name)){ alert('已存在'); return; }
+  DB.folders.push({name}); saveData(DB);
+  document.getElementById('folder-name-input').value=''; hideNewFolderModal(); renderSidebar(); scheduleSync();
+}
+function deleteFolder(name){
+  if(!confirm(`删除文件夹「${name}」？笔记不会被删除。`)) return;
+  DB.folders=DB.folders.filter(f=>f.name!==name);
+  DB.notes.forEach(n=>{ if(n.folder===name) n.folder=null; });
+  saveData(DB);
+  if(currentFilter.type==='folder'&&currentFilter.value===name) setFilter('all');
+  else { renderSidebar(); renderNoteList(); }
+  scheduleSync();
+}
+
+// === Theme & Settings ===
+function setTheme(t){
+  document.body.dataset.theme=t; DB.settings.theme=t; saveData(DB);
+  document.getElementById('hljs-theme').href=t==='dark'
+    ?'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css'
+    :'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css';
+  document.querySelector('meta[name="theme-color"]').content = t==='dark'?'#1f1f1f':'#fafafa';
+  document.getElementById('theme-select').value=t;
+}
+function setFontSize(v){
+  document.documentElement.style.setProperty('--font-size',v+'px');
+  DB.settings.fontSize=+v; saveData(DB);
+  document.getElementById('font-size-val').textContent=v;
+  document.getElementById('font-size-range').value=v;
+}
+function openSettings(){
+  document.getElementById('sync-enable').checked = SYNC.enabled;
+  document.getElementById('sync-token').value = ''; 
+  document.getElementById('sync-gist-id').value = SYNC.gistId;
+  document.getElementById('sync-auto').checked = SYNC.auto;
+  document.getElementById('settings-overlay').classList.add('show');
+}
+function closeSettings(e){ if(e.target===e.currentTarget) document.getElementById('settings-overlay').classList.remove('show'); }
+
+// === Export/Import ===
+function exportCurrentNote(){
+  const n=DB.notes.find(n=>n.id===activeNoteId); if(!n) return;
+  const b=new Blob([n.content],{type:'text/markdown'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(n.title||'笔记')+'.md'; a.click();
+}
+function printNote(){
+  const c=document.getElementById('preview').innerHTML;
+  const w=window.open('','_blank');
+  w.document.write(`<html><head><title>笔记</title><style>body{font-family:sans-serif;max-width:720px;margin:40px auto;line-height:1.8;color:#333}pre{background:#f6f6f6;padding:12px;border-radius:4px;overflow-x:auto;font-size:13px}code{background:#f6f6f6;padding:1px 4px;border-radius:2px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #eee;padding:6px 10px}th{background:#f9f9f9}blockquote{border-left:2px solid #ddd;padding-left:14px;color:#666}</style></head><body>${c}</body></html>`);
+  w.document.close(); w.print();
+}
+function exportAll(){
+  const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`笔记备份-${new Date().toISOString().slice(0,10)}.json`; a.click();
+}
+function importAll(e){
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{ try{
+    const d=JSON.parse(ev.target.result); if(!d.notes) throw new Error('格式不正确');
+    if(confirm(`导入 ${d.notes.length} 篇笔记？确定=合并，取消=替换`)) DB.notes=[...d.notes,...DB.notes];
+    else DB=d;
+    saveData(DB); renderSidebar(); renderNoteList(); alert('完成');
+    scheduleSync();
+  }catch(err){ alert('失败: '+err.message); } };
+  r.readAsText(f); e.target.value='';
+}
+function clearAll(){
+  if(!confirm('清空所有数据？')) return;
+  if(!confirm('再次确认：真的要全部删除？')) return;
+  localStorage.removeItem(STORAGE_KEY); location.reload();
+}
+
+// === GitHub Gist Sync ===
+function parseGistId(input) {
+  if (!input) return '';
+  const m = input.match(/([a-f0-9]{32})/i);
+  return m ? m[1] : input.trim();
+}
+function onSyncToggle() {
+  SYNC.enabled = document.getElementById('sync-enable').checked;
+  saveSyncConfig();
+}
+function saveSyncConfig() {
+  const entered = document.getElementById('sync-token').value.trim();
+  if (entered) SYNC_TOKEN = entered;
+  SYNC.gistId = parseGistId(document.getElementById('sync-gist-id').value);
+  SYNC.auto = document.getElementById('sync-auto').checked;
+  document.getElementById('sync-gist-id').value = SYNC.gistId;
+  saveSync(); updateSyncUI();
+}
+function setSyncState(cls, text) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot ' + cls;
+  document.getElementById('sync-text').textContent = text;
+  document.getElementById('sync-detail').textContent = '状态：' + text;
+}
+function updateSyncUI() {
+  if (!SYNC.enabled) return setSyncState('', '未启用同步');
+  if (!SYNC.gistId) return setSyncState('err', '请填写 Gist ID');
+  if (!SYNC_TOKEN) return setSyncState('', '等待本次会话输入令牌');
+  const t = SYNC.lastSyncAt ? new Date(SYNC.lastSyncAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) : '尚未同步';
+  setSyncState('on', '已配置 · ' + t);
+}
+function gistHeaders() {
+  if (!SYNC_TOKEN) throw new Error('请在设置中输入本次会话的 GitHub Token');
+  return { 'Authorization': 'Bearer ' + SYNC_TOKEN, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+}
+async function fetchGist() {
+  const r = await fetch(`https://api.github.com/gists/${SYNC.gistId}`, { headers: gistHeaders(), cache:'no-store' });
+  if (!r.ok) throw new Error('GitHub 读取失败：HTTP ' + r.status + (r.status===401?'（Token 无效或已过期）':r.status===403?'（权限不足或 API 限流）':''));
+  return r.json();
+}
+function normalizeData(d) {
+  if (!d || !Array.isArray(d.notes)) throw new Error('云端 JSON 格式不正确');
+  return { ...defaultData(), ...d, notes:d.notes, folders:Array.isArray(d.folders)?d.folders:[], settings:{...defaultData().settings,...(d.settings||{})} };
+}
+async function pullRemote(silent=false) {
+  if (!SYNC.enabled || !SYNC.gistId || !SYNC_TOKEN) { if(!silent) alert('请先启用同步，并填写 Token 与 Gist ID'); return null; }
+  setSyncState('busy', '正在读取云端...');
+  try {
+    const gist = await fetchGist();
+    const file = gist.files && gist.files[FILE_NAME];
+    if (!file || file.truncated) throw new Error('Gist 中找不到 notes.json，或文件过大无法完整读取');
+    const remote = normalizeData(JSON.parse(file.content));
+    return { data:remote, version:gist.history?.[0]?.version || null, updatedAt:gist.updated_at };
+  } catch (e) {
+    setSyncState('err', '读取失败');
+    if (!silent) alert('拉取失败：' + e.message);
+    return null;
+  }
+}
+async function pushRemote(data=DB) {
+  if (!SYNC.enabled || !SYNC.gistId || !SYNC_TOKEN) { alert('请先启用同步，并填写 Token 与 Gist ID'); return false; }
+  setSyncState('busy', '正在上传...');
+  try {
+    const r = await fetch(`https://api.github.com/gists/${SYNC.gistId}`, {
+      method:'PATCH', headers:{...gistHeaders(),'Content-Type':'application/json'},
+      body:JSON.stringify({files:{[FILE_NAME]:{content:JSON.stringify(data,null,2)}},description:'熊掌笔记数据'})
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + (r.status===401?'（Token 无效或已过期）':r.status===403?'（权限不足或 API 限流）':''));
+    const result = await r.json();
+    SYNC.lastSyncAt = Date.now(); saveSync();
+    setSyncState('on', '上传成功');
+    return result;
+  } catch (e) { setSyncState('err','上传失败'); alert('上传失败：'+e.message); return false; }
+}
+function stableJSON(v) { return JSON.stringify(v); }
+function samePayload(a,b) { return stableJSON({notes:a?.notes||[],folders:a?.folders||[],settings:a?.settings||{}})===stableJSON({notes:b?.notes||[],folders:b?.folders||[],settings:b?.settings||{}}); }
+function mergeThreeWay(base, local, remote) {
+  const conflicts = [];
+  const bmap = new Map((base?.notes||[]).map(n=>[n.id,n]));
+  const lmap = new Map((local.notes||[]).map(n=>[n.id,n]));
+  const rmap = new Map((remote.notes||[]).map(n=>[n.id,n]));
+  const merged = [];
+  const ids = new Set([...bmap.keys(),...lmap.keys(),...rmap.keys()]);
+  for (const id of ids) {
+    const b=bmap.get(id), l=lmap.get(id), r=rmap.get(id);
+    const bs=stableJSON(b??null), ls=stableJSON(l??null), rs=stableJSON(r??null);
+    if (ls===bs) { if (r) merged.push(r); continue; }
+    if (rs===bs || ls===rs) { if (l) merged.push(l); continue; }
+    // Both sides changed this note differently. Keep cloud original and preserve local edit as a new note.
+    if (r) merged.push(r);
+    if (l) {
+      const copy={...l,id:'conflict_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),title:(l.title||'无标题')+'（本地冲突副本）',updated:Date.now()};
+      merged.push(copy); conflicts.push(copy.title);
+    }
+  }
+  const mergeNamed = (key, getKey) => {
+    const bm=new Map((base?.[key]||[]).map(x=>[getKey(x),x]));
+    const lm=new Map((local[key]||[]).map(x=>[getKey(x),x]));
+    const rm=new Map((remote[key]||[]).map(x=>[getKey(x),x]));
+    const out=[];
+    for(const k of new Set([...bm.keys(),...lm.keys(),...rm.keys()])) {
+      const b=bm.get(k),l=lm.get(k),r=rm.get(k);
+      if(stableJSON(l??null)===stableJSON(b??null)){if(r)out.push(r);}
+      else if(stableJSON(r??null)===stableJSON(b??null)||stableJSON(l??null)===stableJSON(r??null)){if(l)out.push(l);}
+      else { if(r)out.push(r); if(l && !r)out.push(l); }
+    }
+    return out;
+  };
+  const folders=mergeNamed('folders',x=>x.name);
+  const settings = stableJSON(local.settings)===stableJSON(base?.settings) ? remote.settings : local.settings;
+  return { data:{...remote,...local,notes:merged.sort((a,b)=>(b.updated||0)-(a.updated||0)),folders,settings,rev:Math.max(local.rev||0,remote.rev||0)+1,updated:Date.now()}, conflicts };
+}
+async function manualPull() {
+  const pulled=await pullRemote(false);
+  if(!pulled) return;
+  if(!confirm('将用云端数据替换本机笔记。建议先导出本地备份。确定继续吗？')) return;
+  DB=pulled.data; saveData(DB); renderSidebar(); renderNoteList(); saveSyncBase(DB);
+  setSyncState('on','已从云端拉取');
+}
+async function manualPush() {
+  const ok=await pushRemote(DB);
+  if(ok) { saveSyncBase(DB); setSyncState('on','本地数据已上传'); }
+}
+let syncInFlight=false;
+async function syncNow() {
+  if (syncInFlight) return;
+  if (!SYNC.enabled || !SYNC.gistId || !SYNC_TOKEN) { alert('请先在设置中启用同步，输入 Token 和 Gist ID'); return; }
+  syncInFlight=true;
+  try {
+    const pulled=await pullRemote(true);
+    if(!pulled) return;
+    const remote=pulled.data;
+    // First connection: safely union distinct note IDs instead of blindly replacing either side.
+    const base=SYNC_BASE || defaultData();
+    const result=mergeThreeWay(base,DB,remote);
+    const merged=result.data;
+    const localChanged=!samePayload(merged,remote);
+    DB=merged; saveData(DB); renderSidebar(); renderNoteList();
+    if(localChanged) {
+      const uploaded=await pushRemote(DB);
+      if(!uploaded) return;
+      // Verify the write; another device may have written at almost the same time.
+      const verify=await pullRemote(true);
+      if(verify && samePayload(verify.data,DB)) {
+        saveSyncBase(DB); SYNC.lastSyncAt=Date.now(); saveSync();
+        setSyncState('on',result.conflicts.length?'已同步（冲突副本已保留）':'同步完成');
+      } else {
+        setSyncState('busy','检测到并发更新，请再次同步');
+      }
+    } else {
+      saveSyncBase(DB); SYNC.lastSyncAt=Date.now(); saveSync();
+      setSyncState('on','已是最新');
+    }
+    if(result.conflicts.length) alert('检测到同一篇笔记在不同设备上被分别修改。为避免丢失内容，已额外保留本地冲突副本：\n'+result.conflicts.join('\n'));
+  } catch(e) { setSyncState('err','同步失败'); alert('同步失败：'+e.message); }
+  finally { syncInFlight=false; }
+}
+function scheduleSync() {
+  if (!SYNC.enabled || !SYNC.auto || !SYNC.gistId || !SYNC_TOKEN) return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>syncNow(),5000);
+}
+async function createGist() {
+  if (!SYNC_TOKEN) { alert('请先在设置中输入 Token'); return; }
+  setSyncState('busy','正在创建 Gist...');
+  try {
+    const r=await fetch('https://api.github.com/gists',{method:'POST',headers:{...gistHeaders(),'Content-Type':'application/json'},body:JSON.stringify({description:'熊掌笔记数据',public:false,files:{[FILE_NAME]:{content:JSON.stringify(DB,null,2)}}})});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json(); SYNC.gistId=d.id; SYNC.enabled=true; document.getElementById('sync-gist-id').value=d.id; document.getElementById('sync-enable').checked=true; saveSync(); saveSyncBase(DB); updateSyncUI(); alert('Gist 创建成功，ID 已自动填入：'+d.id);
+  } catch(e) { setSyncState('err','创建失败'); alert('创建失败：'+e.message); }
+}
+// === Init ===
+(function(){
+  setTheme(DB.settings.theme||'light');
+  setFontSize(DB.settings.fontSize||15);
+  renderSidebar(); renderNoteList();
+  updateSyncUI();
+  if (SYNC.enabled && SYNC.gistId) {
+    setSyncState('', '请在设置中输入本次会话 Token 后同步');
+  }
+  // PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
